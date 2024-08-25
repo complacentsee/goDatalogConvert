@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,6 +21,19 @@ type DatFloatRecord struct {
 	Status   byte
 	Marker   byte
 	IsValid  bool
+}
+
+type Status struct {
+	Good               bool
+	CommunicationError bool
+	Disabled           bool
+	Stale              bool
+	Uninitialized      bool
+}
+
+type Marker struct {
+	Began bool
+	Ended bool
 }
 
 // ReadFloatFile reads the float file and returns a slice of DatFloatRecord
@@ -63,7 +77,7 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read row count: %v", err)
 	}
-	fmt.Printf("%d values\n", rowCount)
+	slog.Info(fmt.Sprintf("%d values", rowCount))
 
 	// Seek to the starting position for reading float records
 	if _, err := file.Seek(0x121, io.SeekStart); err != nil {
@@ -74,7 +88,7 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 	for i := 0; i < int(rowCount); i++ {
 		rec, err := NewDatFloatRecord(br)
 		if err != nil {
-			fmt.Printf("Error reading record: %v\n", err)
+			slog.Error(fmt.Sprintf("Error reading record: %v", err))
 			continue
 		}
 		records = append(records, rec)
@@ -107,7 +121,7 @@ func NewDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
 	}
 	milli, err := strconv.Atoi(strings.TrimSpace(string(milliBytes)))
 	if err != nil {
-		fmt.Println("failed to set mili bytes")
+		slog.Error("failed to set mili bytes")
 		return nil, err
 	}
 	datetime = datetime.Add(time.Duration(milli) * time.Millisecond)
@@ -118,7 +132,7 @@ func NewDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
 	}
 	tagID, err := strconv.Atoi(strings.TrimSpace(string(tagIDBytes)))
 	if err != nil {
-		fmt.Println("failed to create TagID")
+		slog.Error("failed to create TagID")
 		return nil, err
 	}
 
@@ -165,36 +179,36 @@ func NewDatTagRecord(r io.Reader) (*DatTagRecord, error) {
 	var err error
 	// Skip 1 byte
 	if _, err = r.Read(make([]byte, 1)); err != nil {
-		fmt.Println("error skipping byte")
+		slog.Error("error skipping byte")
 		return nil, err
 	}
 
 	nameBytes := make([]byte, 255)
 	if _, err = r.Read(nameBytes); err != nil {
-		fmt.Println("error creating name bytes")
+		slog.Error("error creating name bytes")
 		return nil, err
 	}
 	name := strings.TrimSpace(string(nameBytes))
 
 	idBytes := make([]byte, 5)
 	if _, err = r.Read(idBytes); err != nil {
-		fmt.Println("error reading idBytes")
+		slog.Error("error reading idBytes")
 		return nil, err
 	}
 	id, err := strconv.Atoi(strings.TrimSpace(string(idBytes)))
 	if err != nil {
-		fmt.Println("error converting id")
+		slog.Error("error converting id")
 		return nil, err
 	}
 
 	typeBytes := make([]byte, 1)
 	if _, err = r.Read(typeBytes); err != nil {
-		fmt.Println("error reading typeBytes")
+		slog.Error("error reading typeBytes")
 		return nil, err
 	}
 	typ, err := strconv.Atoi(string(typeBytes))
 	if err != nil {
-		fmt.Println("error converting type bytes")
+		slog.Error("error converting type bytes")
 		return nil, err
 	}
 
@@ -212,8 +226,8 @@ func NewDatTagRecord(r io.Reader) (*DatTagRecord, error) {
 
 // PrintTagRecord prints the details of a DatTagRecord in a formatted way
 func PrintTagRecord(tag *DatTagRecord) {
-	fmt.Printf("Tag Name: %-100s | Tag ID: %-5d | Type: %-3d | Dtype: %-3d\n",
-		tag.Name, tag.ID, tag.Type, tag.Dtype)
+	slog.Debug(fmt.Sprintf("Tag Name: %-100s | Tag ID: %-5d | Type: %-3d | Dtype: %-3d",
+		tag.Name, tag.ID, tag.Type, tag.Dtype))
 }
 
 // ReadTagFile reads the tag file associated with a float file and returns the DatTagRecord instances
@@ -260,7 +274,7 @@ func (dr *DatReader) ReadTagFile(floatfileName string) ([]*DatTagRecord, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read row count: %v", err)
 	}
-	fmt.Printf("%d tags\n", rowCount)
+	slog.Info(fmt.Sprintf("%d tags", rowCount))
 
 	// Seek to the starting position for reading tag records
 	if _, err := file.Seek(0xA1, io.SeekStart); err != nil {
