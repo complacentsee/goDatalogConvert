@@ -2,11 +2,15 @@ package libFTH
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/include
-#cgo LDFLAGS: -lpiapi
-#include "piapix.h"
+#cgo LDFLAGS: -L"C:/Program Files/Rockwell Software/FactoryTalk Historian/PIPC/bin" -lpiapi
+
+#include <stdint.h>
+#include <stdlib.h>
 
 // C function prototypes
 extern int32_t piut_setservernode(const char* name);
+extern int32_t piut_disconnect();
+extern void piut_setprocname(const char* name);
 extern int32_t pipt_findpoint(const char* name, int32_t* pointNumber);
 extern int32_t pisn_putsnapshotx(int32_t ptnum, double* drval, int32_t* ival, uint8_t* bval, uint32_t* bsize,
                                 int32_t* istat, int16_t* flags, struct PITIMESTAMP* timestamp);
@@ -19,7 +23,7 @@ import (
 	"time"
 	"unsafe"
 
-	"goDatalogConvert/libPI"
+	"github.com/complacentsee/goDatalogConvert/libPI"
 )
 
 func Connect(serverName string) error {
@@ -27,6 +31,20 @@ func Connect(serverName string) error {
 	defer C.free(unsafe.Pointer(cServerName))
 
 	err := C.piut_setservernode(cServerName)
+	if err != 0 {
+		return fmt.Errorf("piut_setservernode returned error %d", err)
+	}
+	return nil
+}
+
+func SetProcessName(processName string) {
+	cProcessName := C.CString(processName)
+	defer C.free(unsafe.Pointer(cProcessName))
+	C.piut_setprocname(cProcessName)
+}
+
+func Disconnect() error {
+	err := C.piut_disconnect()
 	if err != 0 {
 		return fmt.Errorf("piut_setservernode returned error %d", err)
 	}
