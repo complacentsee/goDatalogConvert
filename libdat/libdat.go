@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,14 +14,12 @@ import (
 )
 
 type DatFloatRecord struct {
-	TimeSec  string
-	Milli    int16
-	Datetime time.Time
-	TagID    int16
-	Val      float64
-	Status   byte
-	Marker   byte
-	IsValid  bool
+	TimeStamp time.Time
+	TagID     int
+	Val       float64
+	Status    byte
+	Marker    byte
+	IsValid   bool
 }
 
 type Status struct {
@@ -86,7 +85,7 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 
 	// Read the float records
 	for i := 0; i < int(rowCount); i++ {
-		rec, err := NewDatFloatRecord(br)
+		rec, err := readNextDatFloatRecord(br)
 		if err != nil {
 			slog.Error(fmt.Sprintf("Error reading record: %v", err))
 			continue
@@ -97,76 +96,114 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 	return records, nil
 }
 
-func NewDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
-	var err error
-	// Skip 1 byte
-	if _, err = r.Read(make([]byte, 1)); err != nil {
+func readNextDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
+	// Allocate a single buffer for all the data we need to read
+	buffer := make([]byte, 39)
+
+	// Read all 31 bytes into the buffer
+	if _, err := r.Read(buffer); err != nil {
 		return nil, err
 	}
 
-	timeBytes := make([]byte, 16)
-	if _, err = r.Read(timeBytes); err != nil {
-		return nil, err
-	}
-	timeSec := string(timeBytes)
-
+	timeSec := string(buffer[1:17])
 	datetime, err := time.Parse("2006010215:04:05", timeSec)
 	if err != nil {
-		return &DatFloatRecord{IsValid: false}, nil
+		return &DatFloatRecord{IsValid: false}, err
 	}
 
-	milliBytes := make([]byte, 3)
-	if _, err = r.Read(milliBytes); err != nil {
-		return nil, err
-	}
-	milli, err := strconv.Atoi(strings.TrimSpace(string(milliBytes)))
+	milli, err := strconv.Atoi(strings.TrimSpace(string(buffer[17:20])))
 	if err != nil {
-		slog.Error("failed to set mili bytes")
-		return nil, err
+		slog.Error("failed to set milli bytes")
+		return &DatFloatRecord{IsValid: false}, err
 	}
 	datetime = datetime.Add(time.Duration(milli) * time.Millisecond)
 
-	tagIDBytes := make([]byte, 5)
-	if _, err = r.Read(tagIDBytes); err != nil {
-		return nil, err
-	}
-	tagID, err := strconv.Atoi(strings.TrimSpace(string(tagIDBytes)))
+	tagID, err := strconv.Atoi(strings.TrimSpace(string(buffer[20:25])))
 	if err != nil {
 		slog.Error("failed to create TagID")
-		return nil, err
-	}
-
-	var val float64
-	if err = binary.Read(r, binary.LittleEndian, &val); err != nil {
-		return nil, err
-	}
-
-	status := make([]byte, 1)
-	if _, err = r.Read(status); err != nil {
-		return nil, err
-	}
-
-	marker := make([]byte, 1)
-	if _, err = r.Read(marker); err != nil {
-		return nil, err
-	}
-
-	// Skip 4 bytes
-	if _, err = r.Read(make([]byte, 4)); err != nil {
-		return nil, err
+		return &DatFloatRecord{IsValid: false}, err
 	}
 
 	return &DatFloatRecord{
-		TimeSec:  timeSec,
-		Milli:    int16(milli),
-		Datetime: datetime,
-		TagID:    int16(tagID),
-		Val:      val,
-		Status:   status[0],
-		Marker:   marker[0],
-		IsValid:  true,
+		TimeStamp: datetime,
+		TagID:     tagID,
+		Val:       math.Float64frombits(binary.LittleEndian.Uint64(buffer[25:33])),
+		Status:    buffer[33],
+		Marker:    buffer[34],
+		IsValid:   true,
 	}, nil
 }
+
+// This function works fine and is a nice safe way to handle this, however
+// it's about 6 times slower than the above.
+// func readNextDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
+// 	var err error
+// 	// Skip 1 byte
+// 	if _, err = r.Read(make([]byte, 1)); err != nil {
+// 		return nil, err
+// 	}
+
+// 	timeBytes := make([]byte, 16)
+// 	if _, err = r.Read(timeBytes); err != nil {
+// 		return nil, err
+// 	}
+// 	timeSec := string(timeBytes)
+
+// 	datetime, err := time.Parse("2006010215:04:05", timeSec)
+// 	if err != nil {
+// 		return &DatFloatRecord{IsValid: false}, nil
+// 	}
+
+// 	milliBytes := make([]byte, 3)
+// 	if _, err = r.Read(milliBytes); err != nil {
+// 		return nil, err
+// 	}
+// 	milli, err := strconv.Atoi(strings.TrimSpace(string(milliBytes)))
+// 	if err != nil {
+// 		slog.Error("failed to set mili bytes")
+// 		return nil, err
+// 	}
+// 	datetime = datetime.Add(time.Duration(milli) * time.Millisecond)
+
+// 	tagIDBytes := make([]byte, 5)
+// 	if _, err = r.Read(tagIDBytes); err != nil {
+// 		return nil, err
+// 	}
+// 	tagID, err := strconv.Atoi(strings.TrimSpace(string(tagIDBytes)))
+// 	if err != nil {
+// 		slog.Error("failed to create TagID")
+// 		return nil, err
+// 	}
+
+// 	var val float64
+// 	if err = binary.Read(r, binary.LittleEndian, &val); err != nil {
+// 		return nil, err
+// 	}
+
+// 	status := make([]byte, 1)
+// 	if _, err = r.Read(status); err != nil {
+// 		return nil, err
+// 	}
+
+// 	marker := make([]byte, 1)
+// 	if _, err = r.Read(marker); err != nil {
+// 		return nil, err
+// 	}
+
+// 	// Skip 4 bytes
+// 	if _, err = r.Read(make([]byte, 4)); err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &DatFloatRecord{
+// 		TimeStamp: datetime,
+// 		TagID:     tagID,
+// 		Val:       val,
+// 		Status:    status[0],
+// 		Marker:    marker[0],
+// 		IsValid:   true,
+// 	}, nil
+// }
 
 type DatTagRecord struct {
 	Name  string

@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/complacentsee/goDatalogConvert/libFTH"
 	"github.com/complacentsee/goDatalogConvert/libdat"
 )
 
@@ -17,6 +19,8 @@ const (
 func main() {
 	// Define the command-line flag for the directory path
 	dirPath := flag.String("path", ".", "Path to the directory containing DAT files")
+	host := flag.String("host", "localhost", "hostname of pi server")
+	processName := flag.String("processName", "dat2fth", "hostname of pi server")
 	debugLevel := flag.Bool("debug", false, "Enable Debug Logging")
 	flag.Parse()
 
@@ -30,11 +34,36 @@ func main() {
 		slog.Debug("Debug level logging enabled")
 	}
 
+	slog.Info(fmt.Sprintf("Connecting to piserver at: %s, with process name %s", *host, *processName))
+	libFTH.SetProcessName(*processName)
+	err := libFTH.Connect(*host)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	defer libFTH.Disconnect()
+
 	// Check if the directory exists
 	if _, err := os.Stat(*dirPath); os.IsNotExist(err) {
 		slog.Error("Error: Directory not found")
 		return
 	}
+
+	// pointCache := libPI.NewPointLookup()
+
+	// PointList := []string{"fastcosine", "fastcosine90", "noexists"}
+
+	// // Loop over the slice using a for loop
+	// for i, point := range PointList {
+	// 	_, exists := pointCache.GetPointByDataLogName(point)
+	// 	if exists {
+	// 		continue
+	// 	}
+	// 	pointC := libFTH.GetPIPointCache(point, i, 0, &point)
+	// 	pointCache.AddPoint(pointC)
+	// }
+
+	// pointCache.PrintAll()
 
 	// Initialize the DatReader
 	dr, err := libdat.NewDatReader(*dirPath)
@@ -61,6 +90,8 @@ func main() {
 			pointIDs[tag.ID] = tag.ID // Simplified mapping since PI stuff is removed
 		}
 
+		start := time.Now() // Start timing
+
 		// Process each record in the Float file
 		records, err := dr.ReadFloatFile(floatfileName)
 		if err != nil {
@@ -68,15 +99,19 @@ func main() {
 			return
 		}
 
+		duration := time.Since(start) // Calculate duration
+
+		slog.Info(fmt.Sprintf("Processed %d records from %s in %v", len(records), floatfileName, duration))
+
 		for _, record := range records {
-			if record.IsValid {
-				slog.Debug(fmt.Sprintf("Datetime: %s | TagID: %d | Value: %f | Status: %c | Marker: %c",
-					record.Datetime.Format("2006-01-02 15:04:05.000"),
-					record.TagID,
-					record.Val,
-					record.Status,
-					record.Marker))
-			}
+			slog.Debug(fmt.Sprintf("TimeStamp: %s | TagID: %04d | Value: %16.8f | Status: %c | Marker: %c | Valid: %t",
+				record.TimeStamp.Format("2006-01-02 15:04:05.000"),
+				record.TagID,
+				record.Val,
+				record.Status,
+				record.Marker,
+				record.IsValid))
+
 		}
 
 	}

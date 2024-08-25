@@ -1,7 +1,7 @@
 package libFTH
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/include
+#cgo CFLAGS: -w
 #cgo LDFLAGS: -L"C:/Program Files/Rockwell Software/FactoryTalk Historian/PIPC/bin" -lpiapi
 
 #include <stdint.h>
@@ -12,6 +12,7 @@ extern int32_t piut_setservernode(const char* name);
 extern int32_t piut_disconnect();
 extern void piut_setprocname(const char* name);
 extern int32_t pipt_findpoint(const char* name, int32_t* pointNumber);
+extern int32_t pipt_pointtype(int32_t ptnum, char* type);
 extern int32_t pisn_putsnapshotx(int32_t ptnum, double* drval, int32_t* ival, uint8_t* bval, uint32_t* bsize,
                                 int32_t* istat, int16_t* flags, struct PITIMESTAMP* timestamp);
 extern int32_t pisn_putsnapshotsx(int32_t count, int32_t* ptnum, double* drval, int32_t* ival, uint8_t* bval,
@@ -20,6 +21,7 @@ extern int32_t pisn_putsnapshotsx(int32_t count, int32_t* ptnum, double* drval, 
 import "C"
 import (
 	"fmt"
+	"log/slog"
 	"time"
 	"unsafe"
 
@@ -67,6 +69,31 @@ func GetPointNumber(ptName string) (int32, error) {
 	return int32(pointNumber), nil
 }
 
+// GetPointType retrieves the point type for a given point ID
+func GetPointType(ptId int32) (libPI.PointType, error) {
+	var cType C.char
+
+	// Call the C function to get the point type
+	res := C.pipt_pointtype(C.int32_t(ptId), &cType)
+	if res > 0 {
+		return libPI.PointTypeUnknown, fmt.Errorf("system error occurred, error code: %d", res)
+	} else if res == -1 {
+		return libPI.PointTypeUnknown, fmt.Errorf("point does not exist, point ID: %d", ptId)
+	}
+
+	// Map the returned type character to the PointType enum
+	switch cType {
+	case 'R':
+		return libPI.PointTypeReal, nil
+	case 'I':
+		return libPI.PointTypeInteger, nil
+	case 'D':
+		return libPI.PointTypeDigital, nil
+	default:
+		return libPI.PointTypeUnknown, fmt.Errorf("unknown point type: %c", cType)
+	}
+}
+
 func PutSnapshot(ptId int32, v float64, dt time.Time) error {
 	ival := C.int32_t(0)
 	bsize := C.uint32_t(0)
@@ -101,4 +128,47 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 		}
 	}
 	return nil
+}
+
+func GetPIPointCache(datalogName string, datalogID int, datalogType int, piPointName *string) *libPI.PointCache {
+
+	if piPointName == nil {
+		piPointName = &datalogName
+	}
+
+	slog.Debug(fmt.Sprintf("Looking up PI Point %s", *piPointName))
+	PIPointID, err := GetPointNumber(*piPointName)
+	if err != nil {
+		return &libPI.PointCache{
+			DatalogName: datalogName,
+			DataLogID:   datalogID,
+			DataLogType: 0,
+			Process:     false,
+			PIName:      piPointName,
+		}
+	}
+
+	slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
+	PIPointType, err := GetPointType(PIPointID)
+	if err != nil {
+		return &libPI.PointCache{
+			DatalogName: datalogName,
+			DataLogID:   datalogID,
+			DataLogType: datalogType,
+			Process:     false,
+			PIName:      piPointName,
+			PIId:        &PIPointID,
+			PiType:      &PIPointType,
+		}
+	}
+
+	return &libPI.PointCache{
+		DatalogName: datalogName,
+		DataLogID:   datalogID,
+		DataLogType: 0,
+		Process:     true,
+		PIName:      piPointName,
+		PIId:        &PIPointID,
+		PiType:      &PIPointType,
+	}
 }
