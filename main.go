@@ -135,9 +135,5 @@ func main() {
 
 		duration = time.Since(start) // Calculate duration
 		slog.Info(fmt.Sprintf("Wrote %d records from %s in %v", len(records), floatfileName, duration))
-
-		// for _, record := range records {
-		// 	libDAT.PrintDatFloatRecord(record)
-		// }
 	}
 }
