@@ -65,19 +65,19 @@ type PointCache struct {
 	DataLogID   int
 	DataLogType int
 	Process     bool
-	PIName      *string
+	PIName      string
 	PIId        *int32
 	PiType      *PointType
 }
 
 // Add a method to print out the contents of the PointCache
 func (pc *PointCache) Print() {
-	slog.Info("PointCache details",
+	slog.Debug("PointCache entry",
 		"DatalogName", pc.DatalogName,
 		"DataLogID", pc.DataLogID,
 		"DataLogType", pc.DataLogType,
 		"Process", pc.Process,
-		"PIName", *pc.PIName,
+		"PIName", pc.PIName,
 		"PIId", pc.PIId,
 		"PiType", pc.PiType,
 	)
@@ -117,6 +117,15 @@ func (pl *PointLookup) GetPointByDataLogID(dataLogID int) (*PointCache, bool) {
 	defer pl.mu.RUnlock()
 	point, exists := pl.points[dataLogID]
 	return point, exists
+}
+
+// GetPoint retrieves a point based on DataLogID
+func (pl *PointLookup) GetPointIDByDataLogID(dataLogID int) (*int32, bool) {
+	point, exists := pl.GetPointByDataLogID(dataLogID)
+	if exists {
+		return point.PIId, exists
+	}
+	return nil, exists
 }
 
 // GetPointByName retrieves a point based on DatalogName

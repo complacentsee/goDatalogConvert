@@ -29,7 +29,8 @@ func main() {
 
 	var programLevel = new(slog.LevelVar) // Info by default
 
-	var tagMaps *map[string]string
+	tagMaps := make(map[string]string)
+	useTagMap := false
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: programLevel}))
 	slog.SetDefault(logger)
@@ -45,12 +46,13 @@ func main() {
 			slog.Error(fmt.Sprintf("Failed to load tag map CSV: %v", err))
 			return
 		}
-		if tagMaps == nil {
+		if len(tagMaps) < 1 {
 			slog.Error("Application parameters called for tag mapping and failed")
 			return
 		} else {
-			for k, v := range *tagMaps {
-				slog.Debug(fmt.Sprintf("Datalog Tag: %s, Historian Tag: %s\n", k, v))
+			useTagMap = true
+			for k, v := range tagMaps {
+				slog.Debug(fmt.Sprintf("Datalog Tag: %s, Historian Tag: %s", k, v))
 			}
 		}
 	} else {
@@ -94,15 +96,25 @@ func main() {
 		}
 
 		for _, tag := range tags {
+			tagName := tag.Name
+			if useTagMap {
+				var exists bool
+				tagName, exists = tagMaps[tag.Name]
+				if !exists {
+					continue
+				}
+			}
+
 			libDAT.PrintTagRecord(tag)
 			_, exists := pointCache.GetPointByDataLogName(tag.Name)
 			if exists {
 				continue
 			}
 
-			pointC := libFTH.AddToPIPointCache(tag.Name, tag.ID, 0, &tag.Name)
+			pointC := libFTH.AddToPIPointCache(tag.Name, tag.ID, 0, tagName)
 			pointCache.AddPoint(pointC)
 		}
+		pointCache.PrintAll()
 
 		start := time.Now() // Start timing
 
@@ -112,13 +124,20 @@ func main() {
 			slog.Error(fmt.Sprintf("Error reading float file for %s: %v", floatfileName, err))
 			return
 		}
-
 		duration := time.Since(start) // Calculate duration
+		start = time.Now()
 
-		slog.Info(fmt.Sprintf("Processed %d records from %s in %v", len(records), floatfileName, duration))
-
-		for _, record := range records {
-			libDAT.PrintDatFloatRecord(record)
+		slog.Info(fmt.Sprintf("Loaded %d records from %s in %v", len(records), floatfileName, duration))
+		err = libFTH.ConvertDatFloatRecordsToPutSnapshots(records, pointCache)
+		if err != nil {
+			slog.Error(fmt.Sprintf("Error inserting values into historian: %v", err))
 		}
+
+		duration = time.Since(start) // Calculate duration
+		slog.Info(fmt.Sprintf("Wrote %d records from %s in %v", len(records), floatfileName, duration))
+
+		// for _, record := range records {
+		// 	libDAT.PrintDatFloatRecord(record)
+		// }
 	}
 }

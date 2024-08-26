@@ -22,9 +22,9 @@ import "C"
 import (
 	"fmt"
 	"log/slog"
-	"time"
 	"unsafe"
 
+	"github.com/complacentsee/goDatalogConvert/libDAT"
 	"github.com/complacentsee/goDatalogConvert/libPI"
 )
 
@@ -94,20 +94,6 @@ func GetPointType(ptId int32) (libPI.PointType, error) {
 	}
 }
 
-func PutSnapshot(ptId int32, v float64, dt time.Time) error {
-	ival := C.int32_t(0)
-	bsize := C.uint32_t(0)
-	istat := C.int32_t(0)
-	flags := C.int16_t(0)
-	ts := libPI.NewPITIMESTAMP(dt)
-
-	err := C.pisn_putsnapshotx(C.int32_t(ptId), (*C.double)(&v), &ival, nil, &bsize, &istat, &flags, (*C.struct_PITIMESTAMP)(unsafe.Pointer(&ts)))
-	if err != 0 {
-		return fmt.Errorf("pisn_putsnapshotx returned error %d", err)
-	}
-	return nil
-}
-
 func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) error {
 	ivals := make([]C.int32_t, count)
 	bsizes := make([]C.uint32_t, count)
@@ -122,7 +108,7 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 	err := C.pisn_putsnapshotsx(C.int32_t(count), cPtids, cVs, &ivals[0], nil, &bsizes[0], &istats[0], &flags[0], cTs, &errors[0])
 	if err != 0 {
 		for i := 0; i < int(count); i++ {
-			if errors[i] != 0 {
+			if errors[i] != 0 && errors[i] != -109 {
 				return fmt.Errorf("pisn_putsnapshotsx returned error %d, item %d, ts %v, err %d", err, i, ts[i], errors[i])
 			}
 		}
@@ -130,13 +116,10 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 	return nil
 }
 
-func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName *string) *libPI.PointCache {
-	if piPointName == nil {
-		piPointName = &datalogName
-	}
+func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName string) *libPI.PointCache {
 
-	slog.Debug(fmt.Sprintf("Looking up PI Point %s", *piPointName))
-	PIPointID, err := GetPointNumber(*piPointName)
+	slog.Debug(fmt.Sprintf("Looking up PI Point %s", piPointName))
+	PIPointID, err := GetPointNumber(piPointName)
 	if err != nil {
 		return &libPI.PointCache{
 			DatalogName: datalogName,
@@ -171,4 +154,40 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 		PIId:        &PIPointID,
 		PiType:      &PIPointType,
 	}
+}
+
+func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
+	// Prepare slices for PutSnapshots inputs
+	var ptids []int32
+	var vs []float64
+	var ts []libPI.PITIMESTAMP
+	var count int32
+	count = 0
+
+	for _, record := range records {
+		// Use the point lookup to get the PI Point ID
+		piPointID, exists := pointLookup.GetPointIDByDataLogID(record.TagID)
+		if !exists {
+			continue
+			//return fmt.Errorf("point ID not found for DataLogID %d", record.TagID)
+		}
+		if piPointID == nil {
+			continue
+		}
+
+		piTimestamp := libPI.NewPITIMESTAMP(record.TimeStamp)
+
+		// Append the mapped values to the slices
+		ptids = append(ptids, *piPointID)
+		vs = append(vs, record.Val)
+		ts = append(ts, piTimestamp)
+		count++
+	}
+	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
+	if count < 1 {
+		return fmt.Errorf("No Valid entries to push to historian")
+	}
+
+	// Call the PutSnapshots function with the prepared data
+	return PutSnapshots(count, ptids, vs, ts)
 }

@@ -3,34 +3,37 @@ package libUtil
 import (
 	"encoding/csv"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 )
 
-func LoadTagMapCSV(filePath string, tagMap *map[string]string) error {
+func LoadTagMapCSV(filePath string, tagMap map[string]string) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
-	// Initialize the map if it’s nil
-	if *tagMap == nil {
-		*tagMap = make(map[string]string)
-	}
-
 	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return err
+
+	// Read the file line by line to avoid loading everything into memory at once
+	for i := 0; ; i++ {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading CSV file at line %d: %w", i+1, err)
+		}
+
+		if len(record) < 2 {
+			slog.Error(fmt.Sprintf("Tag Name mapping file doesn't have two records on row %d", i+1))
+			continue
+		}
+
+		tagMap[record[0]] = record[1]
 	}
 
-	for i, record := range records {
-		if len(record) < 2 {
-			slog.Error(fmt.Sprintf("Tag Name mapping file doesn't have two records on row %d", i))
-			continue // or handle the error as appropriate
-		}
-		(*tagMap)[record[0]] = record[1]
-	}
 	return nil
 }
