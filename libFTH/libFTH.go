@@ -2,7 +2,7 @@ package libFTH
 
 /*
 #cgo CFLAGS: -w
-
+#cgo LDFLAGS: -L"C:/Program Files/Rockwell Software/FactoryTalk Historian/PIPC/bin" -lpiapi
 
 #include <stdint.h>
 #include <stdlib.h>
