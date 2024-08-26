@@ -2,7 +2,7 @@ package libFTH
 
 /*
 #cgo CFLAGS: -w
-#cgo LDFLAGS: -L"C:/Program Files/Rockwell Software/FactoryTalk Historian/PIPC/bin" -lpiapi
+
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -130,8 +130,7 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 	return nil
 }
 
-func GetPIPointCache(datalogName string, datalogID int, datalogType int, piPointName *string) *libPI.PointCache {
-
+func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName *string) *libPI.PointCache {
 	if piPointName == nil {
 		piPointName = &datalogName
 	}
@@ -148,6 +147,7 @@ func GetPIPointCache(datalogName string, datalogID int, datalogType int, piPoint
 		}
 	}
 
+	// TODO: Confirm that types are compatible. EG: Don't assume all data is float/real
 	slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
 	PIPointType, err := GetPointType(PIPointID)
 	if err != nil {

@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/complacentsee/goDatalogConvert/libDAT"
 	"github.com/complacentsee/goDatalogConvert/libFTH"
-	"github.com/complacentsee/goDatalogConvert/libdat"
+	"github.com/complacentsee/goDatalogConvert/libPI"
+	"github.com/complacentsee/goDatalogConvert/libUtil"
 )
 
 const (
@@ -21,10 +23,13 @@ func main() {
 	dirPath := flag.String("path", ".", "Path to the directory containing DAT files")
 	host := flag.String("host", "localhost", "hostname of pi server")
 	processName := flag.String("processName", "dat2fth", "hostname of pi server")
+	tagMapCSV := flag.String("tagMapCSV", "", "Path to the CSV file containing the tag map.")
 	debugLevel := flag.Bool("debug", false, "Enable Debug Logging")
 	flag.Parse()
 
 	var programLevel = new(slog.LevelVar) // Info by default
+
+	var tagMaps *map[string]string
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: programLevel}))
 	slog.SetDefault(logger)
@@ -33,8 +38,28 @@ func main() {
 		programLevel.Set(slog.LevelDebug)
 		slog.Debug("Debug level logging enabled")
 	}
+	// Check if the tag map file is provided
+	if *tagMapCSV != "" {
+		err := libUtil.LoadTagMapCSV(*tagMapCSV, tagMaps)
+		if err != nil {
+			slog.Error(fmt.Sprintf("Failed to load tag map CSV: %v", err))
+			return
+		}
+		if tagMaps == nil {
+			slog.Error("Application parameters called for tag mapping and failed")
+			return
+		} else {
+			for k, v := range *tagMaps {
+				slog.Debug(fmt.Sprintf("Datalog Tag: %s, Historian Tag: %s\n", k, v))
+			}
+		}
+	} else {
+		slog.Info("No tag map provided. Continuing without loading tag map.")
+	}
 
-	slog.Info(fmt.Sprintf("Connecting to piserver at: %s, with process name %s", *host, *processName))
+	slog.Info(fmt.Sprintf("Connecting to piserver at: %s, with process name %s",
+		*host, *processName))
+
 	libFTH.SetProcessName(*processName)
 	err := libFTH.Connect(*host)
 	if err != nil {
@@ -49,24 +74,8 @@ func main() {
 		return
 	}
 
-	// pointCache := libPI.NewPointLookup()
-
-	// PointList := []string{"fastcosine", "fastcosine90", "noexists"}
-
-	// // Loop over the slice using a for loop
-	// for i, point := range PointList {
-	// 	_, exists := pointCache.GetPointByDataLogName(point)
-	// 	if exists {
-	// 		continue
-	// 	}
-	// 	pointC := libFTH.GetPIPointCache(point, i, 0, &point)
-	// 	pointCache.AddPoint(pointC)
-	// }
-
-	// pointCache.PrintAll()
-
 	// Initialize the DatReader
-	dr, err := libdat.NewDatReader(*dirPath)
+	dr, err := libDAT.NewDatReader(*dirPath)
 	if err != nil {
 		slog.Error(err.Error())
 		return
@@ -74,11 +83,10 @@ func main() {
 
 	// Process each file in the directory
 	for _, floatfileName := range dr.GetFloatFiles() {
-
 		slog.Info(fmt.Sprintf("Converting %s", filepath.Base(floatfileName)))
-		pointIDs := make(map[int]int)
+		pointCache := libPI.NewPointLookup()
 
-		// Read and process the Tag file associated with the Float file
+		// Read and process the tag file associated with the Float file
 		tags, err := dr.ReadTagFile(floatfileName)
 		if err != nil {
 			slog.Error(fmt.Sprintf("Error reading tag file for %s: %v", floatfileName, err))
@@ -86,8 +94,14 @@ func main() {
 		}
 
 		for _, tag := range tags {
-			//libdat.PrintTagRecord(tag)
-			pointIDs[tag.ID] = tag.ID // Simplified mapping since PI stuff is removed
+			libDAT.PrintTagRecord(tag)
+			_, exists := pointCache.GetPointByDataLogName(tag.Name)
+			if exists {
+				continue
+			}
+
+			pointC := libFTH.AddToPIPointCache(tag.Name, tag.ID, 0, &tag.Name)
+			pointCache.AddPoint(pointC)
 		}
 
 		start := time.Now() // Start timing
@@ -104,21 +118,7 @@ func main() {
 		slog.Info(fmt.Sprintf("Processed %d records from %s in %v", len(records), floatfileName, duration))
 
 		for _, record := range records {
-			slog.Debug(fmt.Sprintf("TimeStamp: %s | TagID: %04d | Value: %16.8f | Status: %c | Marker: %c | Valid: %t",
-				record.TimeStamp.Format("2006-01-02 15:04:05.000"),
-				record.TagID,
-				record.Val,
-				record.Status,
-				record.Marker,
-				record.IsValid))
-
+			libDAT.PrintDatFloatRecord(record)
 		}
-
 	}
 }
-
-// Placeholder function to process the batch (e.g., store the data)
-// func processBatch(batchCount int, ptids []int32, vs []float64, ts []libdat.PITimestamp) {
-// 	// This function would normally handle storing or further processing the batch
-// 	fmt.Printf("Processing batch of %d records\n", batchCount)
-// }

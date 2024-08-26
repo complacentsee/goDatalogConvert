@@ -1,4 +1,4 @@
-package libdat
+package libDAT
 
 import (
 	"encoding/binary"
@@ -378,4 +378,14 @@ func (br *binaryReaderio) ReadInt32() (int32, error) {
 	var i int32
 	err := binary.Read(br, binary.LittleEndian, &i)
 	return i, err
+}
+
+func PrintDatFloatRecord(record *DatFloatRecord) {
+	slog.Debug(fmt.Sprintf("TimeStamp: %s | TagID: %04d | Value: %16.8f | Status: %c | Marker: %c | Valid: %t",
+		record.TimeStamp.Format("2006-01-02 15:04:05.000"),
+		record.TagID,
+		record.Val,
+		record.Status,
+		record.Marker,
+		record.IsValid))
 }
