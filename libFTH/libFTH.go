@@ -22,13 +22,18 @@ import "C"
 import (
 	"fmt"
 	"log/slog"
+	"sync"
 	"unsafe"
 
 	"github.com/complacentsee/goDatalogConvert/libDAT"
 	"github.com/complacentsee/goDatalogConvert/libPI"
 )
 
+var mu sync.Mutex
+
 func Connect(serverName string) error {
+	mu.Lock()
+	defer mu.Unlock()
 	cServerName := C.CString(serverName)
 	defer C.free(unsafe.Pointer(cServerName))
 
@@ -40,12 +45,16 @@ func Connect(serverName string) error {
 }
 
 func SetProcessName(processName string) {
+	mu.Lock()
+	defer mu.Unlock()
 	cProcessName := C.CString(processName)
 	defer C.free(unsafe.Pointer(cProcessName))
 	C.piut_setprocname(cProcessName)
 }
 
 func Disconnect() error {
+	mu.Lock()
+	defer mu.Unlock()
 	err := C.piut_disconnect()
 	if err != 0 {
 		return fmt.Errorf("piut_setservernode returned error %d", err)
@@ -54,6 +63,8 @@ func Disconnect() error {
 }
 
 func GetPointNumber(ptName string) (int32, error) {
+	mu.Lock()
+	defer mu.Unlock()
 	if len(ptName) > 80 {
 		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
 	}
@@ -71,6 +82,8 @@ func GetPointNumber(ptName string) (int32, error) {
 
 // GetPointType retrieves the point type for a given point ID
 func GetPointType(ptId int32) (libPI.PointType, error) {
+	mu.Lock()
+	defer mu.Unlock()
 	var cType C.char
 
 	// Call the C function to get the point type
@@ -95,6 +108,8 @@ func GetPointType(ptId int32) (libPI.PointType, error) {
 }
 
 func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) error {
+	mu.Lock()
+	defer mu.Unlock()
 	ivals := make([]C.int32_t, count)
 	bsizes := make([]C.uint32_t, count)
 	istats := make([]C.int32_t, count)
@@ -184,7 +199,7 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 	}
 	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
 	if count < 1 {
-		return fmt.Errorf("No Valid entries to push to historian")
+		return fmt.Errorf("no Valid entries to push to historian")
 	}
 
 	// Call the PutSnapshots function with the prepared data
