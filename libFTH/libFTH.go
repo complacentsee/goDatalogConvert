@@ -161,8 +161,7 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 	var ptids []int32
 	var vs []float64
 	var ts []libPI.PITIMESTAMP
-	var count int32
-	count = 0
+	var count int32 = 0
 
 	for _, record := range records {
 		// Use the point lookup to get the PI Point ID
