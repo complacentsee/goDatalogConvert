@@ -1,4 +1,4 @@
-package libFTH
+package LibFTH
 
 /*
 #cgo CFLAGS: -w
@@ -26,12 +26,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/complacentsee/goDatalogConvert/libDAT"
-	"github.com/complacentsee/goDatalogConvert/libPI"
+	"github.com/complacentsee/goDatalogConvert/LibDAT"
+	"github.com/complacentsee/goDatalogConvert/LibPI"
 )
 
 var mu sync.Mutex
-var historianCache = make(map[string]libPI.HistorianPoint)
+var historianCache = make(map[string]LibPI.HistorianPoint)
 
 func Connect(serverName string) error {
 	mu.Lock()
@@ -84,12 +84,12 @@ func GetPointNumber(ptName string) (int32, error) {
 	mu.Unlock()
 
 	ptNumber := int32(pointNumber)
-	historianCache[ptName] = libPI.HistorianPoint{PIId: ptNumber}
+	historianCache[ptName] = LibPI.HistorianPoint{PIId: ptNumber}
 
 	return ptNumber, nil
 }
 
-func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) (time.Duration, error) {
+func PutSnapshots(count int32, ptids []int32, vs []float64, ts []LibPI.PITIMESTAMP) (time.Duration, error) {
 	start := time.Now()
 	mu.Lock()
 	waitDuration := time.Since(start)
@@ -115,11 +115,11 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 	return waitDuration, nil
 }
 
-func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName string) *libPI.PointCache {
+func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName string) *LibPI.PointCache {
 	slog.Debug(fmt.Sprintf("Looking up PI Point %s", piPointName))
 	PIPointID, err := GetPointNumber(piPointName)
 	if err != nil {
-		return &libPI.PointCache{
+		return &LibPI.PointCache{
 			DatalogName: datalogName,
 			DataLogID:   datalogID,
 			DataLogType: 0,
@@ -131,7 +131,7 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 	// TODO: Confirm that types are compatible. EG: Don't assume all data is float/real
 	slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
 	if err != nil {
-		return &libPI.PointCache{
+		return &LibPI.PointCache{
 			DatalogName: datalogName,
 			DataLogID:   datalogID,
 			DataLogType: datalogType,
@@ -141,7 +141,7 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 		}
 	}
 
-	return &libPI.PointCache{
+	return &LibPI.PointCache{
 		DatalogName: datalogName,
 		DataLogID:   datalogID,
 		DataLogType: 0,
@@ -151,11 +151,11 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 	}
 }
 
-func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
+func ConvertDatFloatRecordsToPutSnapshots(records []*LibDAT.DatFloatRecord, pointLookup *LibPI.PointLookup) error {
 	// Prepare slices for PutSnapshots inputs
 	ptids := make([]int32, 0, len(records))
 	vs := make([]float64, 0, len(records))
-	ts := make([]libPI.PITIMESTAMP, 0, len(records))
+	ts := make([]LibPI.PITIMESTAMP, 0, len(records))
 	var count int32 = 0
 	start := time.Now()
 
@@ -170,7 +170,7 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 			continue
 		}
 
-		piTimestamp := libPI.NewPITIMESTAMP(record.TimeStamp)
+		piTimestamp := LibPI.NewPITIMESTAMP(record.TimeStamp)
 
 		// Append the mapped values to the slices
 		ptids = append(ptids, *piPointID)
@@ -191,11 +191,11 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 	return err
 }
 
-// func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
+// func ConvertDatFloatRecordsToPutSnapshots(records []*LibDAT.DatFloatRecord, pointLookup *LibPI.PointLookup) error {
 // 	// Prepare slices for PutSnapshots inputs
 // 	var ptids []int32
 // 	var vs []float64
-// 	var ts []libPI.PITIMESTAMP
+// 	var ts []LibPI.PITIMESTAMP
 // 	var count int32 = 0
 
 // 	for i, record := range records {
@@ -210,7 +210,7 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 // 			continue
 // 		}
 
-// 		piTimestamp := libPI.NewPITIMESTAMP(record.TimeStamp)
+// 		piTimestamp := LibPI.NewPITIMESTAMP(record.TimeStamp)
 
 // 		// Append the mapped values to the slices
 // 		ptids = append(ptids, *piPointID)

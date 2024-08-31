@@ -1,4 +1,4 @@
-package libPI
+package LibPI
 
 // #include <stdint.h>
 import "C"

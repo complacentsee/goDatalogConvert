@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/complacentsee/goDatalogConvert/libDAT"
-	"github.com/complacentsee/goDatalogConvert/libFTH"
-	"github.com/complacentsee/goDatalogConvert/libPI"
+	"github.com/complacentsee/goDatalogConvert/LibDAT"
+	"github.com/complacentsee/goDatalogConvert/LibFTH"
+	"github.com/complacentsee/goDatalogConvert/LibPI"
 	"github.com/complacentsee/goDatalogConvert/libUtil"
 )
 
 type datRecord struct {
-	Records     []*libDAT.DatFloatRecord
-	PointLookup *libPI.PointLookup
+	Records     []*LibDAT.DatFloatRecord
+	PointLookup *LibPI.PointLookup
 }
 
 func main() {
@@ -64,20 +64,20 @@ func main() {
 
 	slog.Info(fmt.Sprintf("Connecting to piserver at: %s, with process name %s", *host, *processName))
 
-	libFTH.SetProcessName(*processName)
-	err := libFTH.Connect(*host)
+	LibFTH.SetProcessName(*processName)
+	err := LibFTH.Connect(*host)
 	if err != nil {
 		slog.Error(err.Error())
 		return
 	}
-	defer libFTH.Disconnect()
+	defer LibFTH.Disconnect()
 
 	if _, err := os.Stat(*dirPath); os.IsNotExist(err) {
 		slog.Error("Error: Directory not found")
 		return
 	}
 
-	dr, err := libDAT.NewDatReader(*dirPath)
+	dr, err := LibDAT.NewDatReader(*dirPath)
 	if err != nil {
 		slog.Error(err.Error())
 		return
@@ -112,12 +112,12 @@ func main() {
 	slog.Info("Processing complete.")
 }
 
-func processFile(fileName string, dr *libDAT.DatReader, tagMaps map[string]string, useTagMap bool, recordChan chan<- datRecord, wg *sync.WaitGroup, sem chan struct{}) {
+func processFile(fileName string, dr *LibDAT.DatReader, tagMaps map[string]string, useTagMap bool, recordChan chan<- datRecord, wg *sync.WaitGroup, sem chan struct{}) {
 	defer wg.Done()          // Decrement the counter when the function returns
 	defer func() { <-sem }() // Release semaphore slot when done
 
 	start := time.Now()
-	pointCache := libPI.NewPointLookup()
+	pointCache := LibPI.NewPointLookup()
 
 	tags, err := dr.ReadTagFile(fileName)
 	if err != nil {
@@ -135,13 +135,13 @@ func processFile(fileName string, dr *libDAT.DatReader, tagMaps map[string]strin
 			}
 		}
 
-		libDAT.PrintTagRecord(tag)
+		LibDAT.PrintTagRecord(tag)
 		_, exists := pointCache.GetPointByDataLogName(tag.Name)
 		if exists {
 			continue
 		}
 
-		pointC := libFTH.AddToPIPointCache(tag.Name, tag.ID, 0, tagName)
+		pointC := LibFTH.AddToPIPointCache(tag.Name, tag.ID, 0, tagName)
 		pointCache.AddPoint(pointC)
 	}
 	pointCache.PrintAll()
@@ -172,7 +172,7 @@ func insertRecords(recordChan <-chan datRecord, doneChan chan<- struct{}) {
 
 			records := dr.Records
 			pointCache := dr.PointLookup
-			err := libFTH.ConvertDatFloatRecordsToPutSnapshots(records, pointCache)
+			err := LibFTH.ConvertDatFloatRecordsToPutSnapshots(records, pointCache)
 			if err != nil {
 				slog.Error(fmt.Sprintf("Error inserting values into historian: %v", err))
 			}

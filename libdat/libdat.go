@@ -1,4 +1,4 @@
-package libDAT
+package LibDAT
 
 import (
 	"encoding/binary"
