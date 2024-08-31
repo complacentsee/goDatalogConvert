@@ -75,7 +75,7 @@ func (pc *PointCache) Print() {
 		"DataLogType", pc.DataLogType,
 		"Process", pc.Process,
 		"PIName", pc.PIName,
-		"PIId", pc.PIId,
+		"PIId", *pc.PIId,
 	)
 }
 
