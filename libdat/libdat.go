@@ -83,6 +83,8 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 		return nil, fmt.Errorf("failed to seek to float records: %v", err)
 	}
 
+	records = make([]*DatFloatRecord, rowCount)
+
 	// Read the float records
 	for i := 0; i < int(rowCount); i++ {
 		rec, err := readNextDatFloatRecord(br)
@@ -90,7 +92,7 @@ func (dr *DatReader) ReadFloatFile(filename string) ([]*DatFloatRecord, error) {
 			slog.Error(fmt.Sprintf("Error reading record: %v", err))
 			continue
 		}
-		records = append(records, rec)
+		records[i] = rec
 	}
 
 	return records, nil

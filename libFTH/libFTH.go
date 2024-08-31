@@ -150,19 +150,19 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 
 func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
 	// Prepare slices for PutSnapshots inputs
-	var ptids []int32
-	var vs []float64
-	var ts []libPI.PITIMESTAMP
+	ptids := make([]int32, 0, len(records))
+	vs := make([]float64, 0, len(records))
+	ts := make([]libPI.PITIMESTAMP, 0, len(records))
 	var count int32 = 0
 
 	for _, record := range records {
+		if record == nil {
+			continue // Skip nil records to avoid dereferencing nil pointers
+		}
+
 		// Use the point lookup to get the PI Point ID
 		piPointID, exists := pointLookup.GetPointIDByDataLogID(record.TagID)
-		if !exists {
-			continue
-			//return fmt.Errorf("point ID not found for DataLogID %d", record.TagID)
-		}
-		if piPointID == nil {
+		if !exists || piPointID == nil {
 			continue
 		}
 
@@ -174,11 +174,48 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 		ts = append(ts, piTimestamp)
 		count++
 	}
+
 	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
 	if count < 1 {
-		return fmt.Errorf("no Valid entries to push to historian")
+		return fmt.Errorf("no valid entries to push to historian")
 	}
 
 	// Call the PutSnapshots function with the prepared data
 	return PutSnapshots(count, ptids, vs, ts)
 }
+
+// func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
+// 	// Prepare slices for PutSnapshots inputs
+// 	var ptids []int32
+// 	var vs []float64
+// 	var ts []libPI.PITIMESTAMP
+// 	var count int32 = 0
+
+// 	for i, record := range records {
+
+// 		// Use the point lookup to get the PI Point ID
+// 		piPointID, exists := pointLookup.GetPointIDByDataLogID(record.TagID)
+// 		if !exists {
+// 			continue
+// 			//return fmt.Errorf("point ID not found for DataLogID %d", record.TagID)
+// 		}
+// 		if piPointID == nil {
+// 			continue
+// 		}
+
+// 		piTimestamp := libPI.NewPITIMESTAMP(record.TimeStamp)
+
+// 		// Append the mapped values to the slices
+// 		ptids = append(ptids, *piPointID)
+// 		vs = append(vs, record.Val)
+// 		ts = append(ts, piTimestamp)
+// 		count++
+// 	}
+// 	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
+// 	if count < 1 {
+// 		return fmt.Errorf("no Valid entries to push to historian")
+// 	}
+
+// 	// Call the PutSnapshots function with the prepared data
+// 	return PutSnapshots(count, ptids, vs, ts)
+// }
