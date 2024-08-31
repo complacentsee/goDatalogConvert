@@ -30,6 +30,7 @@ import (
 )
 
 var mu sync.Mutex
+var historianCache = make(map[string]libPI.HistorianPoint)
 
 func Connect(serverName string) error {
 	mu.Lock()
@@ -63,8 +64,10 @@ func Disconnect() error {
 }
 
 func GetPointNumber(ptName string) (int32, error) {
+	if point, ok := historianCache[ptName]; ok {
+		return point.PIId, nil
+	}
 	mu.Lock()
-	defer mu.Unlock()
 	if len(ptName) > 80 {
 		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
 	}
@@ -77,34 +80,12 @@ func GetPointNumber(ptName string) (int32, error) {
 	if err != 0 {
 		return 0, fmt.Errorf("error finding historian point %s, pipt_findpoint returned error %d", ptName, err)
 	}
-	return int32(pointNumber), nil
-}
+	mu.Unlock()
 
-// GetPointType retrieves the point type for a given point ID
-func GetPointType(ptId int32) (libPI.PointType, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	var cType C.char
+	ptNumber := int32(pointNumber)
+	historianCache[ptName] = libPI.HistorianPoint{PIId: ptNumber}
 
-	// Call the C function to get the point type
-	res := C.pipt_pointtype(C.int32_t(ptId), &cType)
-	if res > 0 {
-		return libPI.PointTypeUnknown, fmt.Errorf("system error occurred, error code: %d", res)
-	} else if res == -1 {
-		return libPI.PointTypeUnknown, fmt.Errorf("point does not exist, point ID: %d", ptId)
-	}
-
-	// Map the returned type character to the PointType enum
-	switch cType {
-	case 'R':
-		return libPI.PointTypeReal, nil
-	case 'I':
-		return libPI.PointTypeInteger, nil
-	case 'D':
-		return libPI.PointTypeDigital, nil
-	default:
-		return libPI.PointTypeUnknown, fmt.Errorf("unknown point type: %c", cType)
-	}
+	return ptNumber, nil
 }
 
 func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) error {
@@ -132,7 +113,6 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 }
 
 func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName string) *libPI.PointCache {
-
 	slog.Debug(fmt.Sprintf("Looking up PI Point %s", piPointName))
 	PIPointID, err := GetPointNumber(piPointName)
 	if err != nil {
@@ -147,7 +127,6 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 
 	// TODO: Confirm that types are compatible. EG: Don't assume all data is float/real
 	slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
-	PIPointType, err := GetPointType(PIPointID)
 	if err != nil {
 		return &libPI.PointCache{
 			DatalogName: datalogName,
@@ -156,7 +135,6 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 			Process:     false,
 			PIName:      piPointName,
 			PIId:        &PIPointID,
-			PiType:      &PIPointType,
 		}
 	}
 
@@ -167,7 +145,6 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 		Process:     true,
 		PIName:      piPointName,
 		PIId:        &PIPointID,
-		PiType:      &PIPointType,
 	}
 }
 

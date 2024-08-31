@@ -30,12 +30,6 @@ func NewPITIMESTAMP(dt time.Time) PITIMESTAMP {
 	}
 }
 
-type FloatSnapshot struct {
-	Ptid int32
-	Val  float64
-	Dt   time.Time
-}
-
 // PointType represents the different point types
 type PointType int
 
@@ -67,7 +61,10 @@ type PointCache struct {
 	Process     bool
 	PIName      string
 	PIId        *int32
-	PiType      *PointType
+}
+
+type HistorianPoint struct {
+	PIId int32
 }
 
 // Add a method to print out the contents of the PointCache
@@ -79,7 +76,6 @@ func (pc *PointCache) Print() {
 		"Process", pc.Process,
 		"PIName", pc.PIName,
 		"PIId", pc.PIId,
-		"PiType", pc.PiType,
 	)
 }
 
