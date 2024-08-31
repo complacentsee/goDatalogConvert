@@ -172,15 +172,11 @@ func insertRecords(recordChan <-chan datRecord, doneChan chan<- struct{}) {
 
 			records := dr.Records
 			pointCache := dr.PointLookup
-			start := time.Now()
-
 			err := libFTH.ConvertDatFloatRecordsToPutSnapshots(records, pointCache)
 			if err != nil {
 				slog.Error(fmt.Sprintf("Error inserting values into historian: %v", err))
 			}
 
-			duration := time.Since(start)
-			slog.Info(fmt.Sprintf("Wrote %d records in %v", len(records), duration))
 		}(datrecords)
 	}
 
