@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/complacentsee/goDatalogConvert/libDAT"
@@ -88,8 +89,10 @@ func GetPointNumber(ptName string) (int32, error) {
 	return ptNumber, nil
 }
 
-func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) error {
+func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTAMP) (time.Duration, error) {
+	start := time.Now()
 	mu.Lock()
+	waitDuration := time.Since(start)
 	defer mu.Unlock()
 	ivals := make([]C.int32_t, count)
 	bsizes := make([]C.uint32_t, count)
@@ -105,11 +108,11 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []libPI.PITIMESTA
 	if err != 0 {
 		for i := 0; i < int(count); i++ {
 			if errors[i] != 0 && errors[i] != -109 {
-				return fmt.Errorf("pisn_putsnapshotsx returned error %d, item %d, ts %v, err %d", err, i, ts[i], errors[i])
+				return waitDuration, fmt.Errorf("pisn_putsnapshotsx returned error %d, item %d, ts %v, err %d", err, i, ts[i], errors[i])
 			}
 		}
 	}
-	return nil
+	return waitDuration, nil
 }
 
 func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPointName string) *libPI.PointCache {
@@ -154,6 +157,7 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 	vs := make([]float64, 0, len(records))
 	ts := make([]libPI.PITIMESTAMP, 0, len(records))
 	var count int32 = 0
+	start := time.Now()
 
 	for _, record := range records {
 		if record == nil {
@@ -175,13 +179,16 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, poin
 		count++
 	}
 
-	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
 	if count < 1 {
 		return fmt.Errorf("no valid entries to push to historian")
 	}
 
-	// Call the PutSnapshots function with the prepared data
-	return PutSnapshots(count, ptids, vs, ts)
+	waitingDuration, err := PutSnapshots(count, ptids, vs, ts)
+	duration := time.Since(start)
+
+	slog.Info(fmt.Sprintf("Pushed %d records to historian in %.2f seconds, waited %.2f seconds", count, duration.Seconds()-waitingDuration.Seconds(), waitingDuration.Seconds()))
+
+	return err
 }
 
 // func ConvertDatFloatRecordsToPutSnapshots(records []*libDAT.DatFloatRecord, pointLookup *libPI.PointLookup) error {
