@@ -4,7 +4,8 @@ on:
   push:
     tags:
       - 'v*'  # Triggers on tags that start with "v"
-
+  workflow_dispatch:  # Adds a manual trigger option
+  
 jobs:
   build:
     strategy:
@@ -27,7 +28,7 @@ jobs:
       run: |
         GOOS=windows GOARCH=amd64 CGO_ENABLED=1 \
         CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ \
-        go build -v -o goDatalogConvert.exe ./...
+        go build -v -o goDatalogConvert.exe
 
     - name: Archive Windows binary
       uses: actions/upload-artifact@v3
