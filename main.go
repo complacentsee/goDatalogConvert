@@ -11,7 +11,7 @@ import (
 	"github.com/complacentsee/goDatalogConvert/LibDAT"
 	"github.com/complacentsee/goDatalogConvert/LibFTH"
 	"github.com/complacentsee/goDatalogConvert/LibPI"
-	"github.com/complacentsee/goDatalogConvert/libUtil"
+	LibUtil "github.com/complacentsee/goDatalogConvert/libUtil"
 )
 
 type datRecord struct {
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	if *tagMapCSV != "" {
-		err := libUtil.LoadTagMapCSV(*tagMapCSV, tagMaps)
+		err := LibUtil.LoadTagMapCSV(*tagMapCSV, tagMaps)
 		if err != nil {
 			slog.Error(fmt.Sprintf("Failed to load tag map CSV: %v", err))
 			return

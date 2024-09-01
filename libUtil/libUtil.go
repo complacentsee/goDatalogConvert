@@ -1,4 +1,4 @@
-package libUtil
+package LibUtil
 
 import (
 	"encoding/csv"

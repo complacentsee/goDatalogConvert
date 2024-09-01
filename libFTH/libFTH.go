@@ -30,12 +30,13 @@ import (
 	"github.com/complacentsee/goDatalogConvert/LibPI"
 )
 
+var piapidll sync.Mutex
 var mu sync.Mutex
 var historianCache = make(map[string]LibPI.HistorianPoint)
 
 func Connect(serverName string) error {
-	mu.Lock()
-	defer mu.Unlock()
+	piapidll.Lock()
+	defer piapidll.Unlock()
 	cServerName := C.CString(serverName)
 	defer C.free(unsafe.Pointer(cServerName))
 
@@ -47,16 +48,16 @@ func Connect(serverName string) error {
 }
 
 func SetProcessName(processName string) {
-	mu.Lock()
-	defer mu.Unlock()
+	piapidll.Lock()
+	defer piapidll.Unlock()
 	cProcessName := C.CString(processName)
 	defer C.free(unsafe.Pointer(cProcessName))
 	C.piut_setprocname(cProcessName)
 }
 
 func Disconnect() error {
-	mu.Lock()
-	defer mu.Unlock()
+	piapidll.Lock()
+	defer piapidll.Unlock()
 	err := C.piut_disconnect()
 	if err != 0 {
 		return fmt.Errorf("piut_setservernode returned error %d", err)
@@ -65,10 +66,14 @@ func Disconnect() error {
 }
 
 func GetPointNumber(ptName string) (int32, error) {
+	mu.Lock()
 	if point, ok := historianCache[ptName]; ok {
+		mu.Unlock()
 		return point.PIId, nil
 	}
-	mu.Lock()
+	mu.Unlock()
+
+	piapidll.Lock()
 	if len(ptName) > 80 {
 		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
 	}
@@ -81,19 +86,21 @@ func GetPointNumber(ptName string) (int32, error) {
 	if err != 0 {
 		return 0, fmt.Errorf("error finding historian point %s, pipt_findpoint returned error %d", ptName, err)
 	}
-	mu.Unlock()
+	piapidll.Unlock()
 
 	ptNumber := int32(pointNumber)
-	historianCache[ptName] = LibPI.HistorianPoint{PIId: ptNumber}
 
+	mu.Lock()
+	historianCache[ptName] = LibPI.HistorianPoint{PIId: ptNumber}
+	mu.Unlock()
 	return ptNumber, nil
 }
 
 func PutSnapshots(count int32, ptids []int32, vs []float64, ts []LibPI.PITIMESTAMP) (time.Duration, error) {
 	start := time.Now()
-	mu.Lock()
+	piapidll.Lock()
 	waitDuration := time.Since(start)
-	defer mu.Unlock()
+	defer piapidll.Unlock()
 	ivals := make([]C.int32_t, count)
 	bsizes := make([]C.uint32_t, count)
 	istats := make([]C.int32_t, count)
