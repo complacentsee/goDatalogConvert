@@ -11,7 +11,7 @@ import (
 	"github.com/complacentsee/goDatalogConvert/LibDAT"
 	"github.com/complacentsee/goDatalogConvert/LibFTH"
 	"github.com/complacentsee/goDatalogConvert/LibPI"
-	LibUtil "github.com/complacentsee/goDatalogConvert/libUtil"
+	"github.com/complacentsee/goDatalogConvert/LibUtil"
 )
 
 type datRecord struct {
