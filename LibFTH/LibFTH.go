@@ -1,13 +1,21 @@
 package LibFTH
 
 /*
-#cgo CFLAGS: -w
-#cgo LDFLAGS: -L"C:/Program Files/Rockwell Software/FactoryTalk Historian/PIPC/bin" -lpiapi
+#cgo LDFLAGS: -L"./" -lpiapi
 
 #include <stdint.h>
 #include <stdlib.h>
 
 // C function prototypes
+struct PITIMESTAMP {
+    int16_t year;
+    int16_t month;
+    int16_t day;
+    int16_t hour;
+    int16_t minute;
+    int16_t second;
+    int32_t subsecond;
+};
 extern int32_t piut_setservernode(const char* name);
 extern int32_t piut_disconnect();
 extern void piut_setprocname(const char* name);
@@ -136,17 +144,17 @@ func AddToPIPointCache(datalogName string, datalogID int, datalogType int, piPoi
 	}
 
 	// TODO: Confirm that types are compatible. EG: Don't assume all data is float/real
-	slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
-	if err != nil {
-		return &LibPI.PointCache{
-			DatalogName: datalogName,
-			DataLogID:   datalogID,
-			DataLogType: datalogType,
-			Process:     false,
-			PIName:      piPointName,
-			PIId:        &PIPointID,
-		}
-	}
+	// slog.Debug(fmt.Sprintf("Looking up PI Type for PI ID %d", PIPointID))
+	// if err != nil {
+	// 	return &LibPI.PointCache{
+	// 		DatalogName: datalogName,
+	// 		DataLogID:   datalogID,
+	// 		DataLogType: datalogType,
+	// 		Process:     false,
+	// 		PIName:      piPointName,
+	// 		PIId:        &PIPointID,
+	// 	}
+	// }
 
 	return &LibPI.PointCache{
 		DatalogName: datalogName,
