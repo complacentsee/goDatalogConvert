@@ -74,6 +74,7 @@ func GetPointNumber(ptName string) (int32, error) {
 	mu.Unlock()
 
 	piapidll.Lock()
+	defer piapidll.Unlock()
 	if len(ptName) > 80 {
 		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
 	}
@@ -86,7 +87,6 @@ func GetPointNumber(ptName string) (int32, error) {
 	if err != 0 {
 		return 0, fmt.Errorf("error finding historian point %s, pipt_findpoint returned error %d", ptName, err)
 	}
-	piapidll.Unlock()
 
 	ptNumber := int32(pointNumber)
 
