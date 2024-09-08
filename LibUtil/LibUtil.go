@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 )
 
 func LoadTagMapCSV(filePath string, tagMap map[string]string) error {
@@ -32,7 +33,7 @@ func LoadTagMapCSV(filePath string, tagMap map[string]string) error {
 			continue
 		}
 
-		tagMap[record[0]] = record[1]
+		tagMap[strings.ToUpper(record[0])] = record[1]
 	}
 
 	return nil
