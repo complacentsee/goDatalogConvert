@@ -23,7 +23,7 @@ func main() {
 	// Define the command-line flag for the directory path
 	dirPath := flag.String("path", ".", "Path to the directory containing DAT files")
 	host := flag.String("host", "localhost", "hostname of pi server")
-	processName := flag.String("processName", "dat2fth", "hostname of pi server")
+	processName := flag.String("processName", "dat2fth", "process name for historian connection")
 	tagMapCSV := flag.String("tagMapCSV", "", "Path to the CSV file containing the tag map.")
 	debugLevel := flag.Bool("debug", false, "Enable Debug Logging")
 	flag.Parse()
@@ -83,7 +83,7 @@ func main() {
 		return
 	}
 
-	// Semaphore to limit concurrent DAT file reads to 3
+	// Semaphore to limit concurrent DAT file reads
 	sem := make(chan struct{}, 10)
 
 	// Buffered channel to hold one extra DAT file's worth of records
