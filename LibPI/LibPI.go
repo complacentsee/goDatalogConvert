@@ -1,6 +1,8 @@
 package LibPI
 
-// #include <stdint.h>
+/*
+#include <stdint.h>
+*/
 import "C"
 import (
 	"log/slog"
@@ -9,24 +11,24 @@ import (
 )
 
 type PITIMESTAMP struct {
-	Month  C.int
-	Year   C.int
-	Day    C.int
-	Hour   C.int
-	Minute C.int
-	Tzinfo C.int
+	Month  C.int32_t
+	Year   C.int32_t
+	Day    C.int32_t
+	Hour   C.int32_t
+	Minute C.int32_t
+	Tzinfo C.int32_t
 	Second C.double
 }
 
 func NewPITIMESTAMP(dt time.Time) PITIMESTAMP {
 	return PITIMESTAMP{
-		Month:  C.int(dt.Month()),
-		Year:   C.int(dt.Year()),
-		Day:    C.int(dt.Day()),
-		Hour:   C.int(dt.Hour()),
-		Minute: C.int(dt.Minute()),
+		Month:  C.int32_t(dt.Month()),
+		Year:   C.int32_t(dt.Year()),
+		Day:    C.int32_t(dt.Day()),
+		Hour:   C.int32_t(dt.Hour()),
+		Minute: C.int32_t(dt.Minute()),
 		Second: C.double(dt.Second()) + C.double(dt.Nanosecond())/1e9,
-		Tzinfo: C.int(0), // Timezone is 0 in datalogs
+		Tzinfo: C.int32_t(0), // Timezone is 0 in datalogs
 	}
 }
 

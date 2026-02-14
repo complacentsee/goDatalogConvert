@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"math"
 	"os"
@@ -102,19 +103,69 @@ func (dr *DatReader) ReadFloatFileRecords(filename string, rowCount int32) ([]*D
 		return nil, fmt.Errorf("failed to seek to float records: %v", err)
 	}
 
-	records = make([]*DatFloatRecord, rowCount)
+	records = make([]*DatFloatRecord, 0, rowCount)
 
 	// Read the float records
+	var errorCount int
 	for i := 0; i < int(rowCount); i++ {
 		rec, err := readNextDatFloatRecord(br)
 		if err != nil {
-			slog.Error(fmt.Sprintf("Error reading record: %v", err))
+			slog.Error(fmt.Sprintf("Error reading record %d: %v", i, err))
+			errorCount++
 			continue
 		}
-		records[i] = rec
+		records = append(records, rec)
+	}
+
+	if errorCount > 0 {
+		slog.Warn(fmt.Sprintf("Successfully read %d out of %d records (%d errors)", len(records), rowCount, errorCount))
 	}
 
 	return records, nil
+}
+
+// IterFloatFileRecords returns an iterator for streaming float records one at a time.
+// This is memory-efficient for large files as it only keeps one record in memory at a time.
+// Usage: for record := range dr.IterFloatFileRecords(filename) { ... }
+func (dr *DatReader) IterFloatFileRecords(filename string) iter.Seq[*DatFloatRecord] {
+	return func(yield func(*DatFloatRecord) bool) {
+		// Get record count from header
+		count, err := dr.ReadFloatFileHeader(filename)
+		if err != nil {
+			slog.Error("failed to read float file header", "file", filename, "error", err)
+			return
+		}
+
+		// Open the file
+		file, err := os.Open(filename)
+		if err != nil {
+			slog.Error("failed to open float file", "file", filename, "error", err)
+			return
+		}
+		defer file.Close()
+
+		br := binaryReader(file)
+
+		// Seek to records start
+		if _, err := file.Seek(0x121, io.SeekStart); err != nil {
+			slog.Error("failed to seek to float records", "error", err)
+			return
+		}
+
+		// Yield records one at a time
+		for i := range int(*count) {
+			rec, err := readNextDatFloatRecord(br)
+			if err != nil {
+				slog.Error("error reading record", "index", i, "error", err)
+				continue
+			}
+
+			// Yield the record - if yield returns false, caller wants to stop iteration
+			if !yield(rec) {
+				return
+			}
+		}
+	}
 }
 
 // ReadFloatFile reads the float file and returns a slice of DatFloatRecord
@@ -136,7 +187,7 @@ func readNextDatFloatRecord(r io.Reader) (*DatFloatRecord, error) {
 	// Allocate a single buffer for all the data we need to read
 	buffer := make([]byte, 39)
 
-	// Read all 31 bytes into the buffer
+	// Read all 39 bytes into the buffer
 	if _, err := r.Read(buffer); err != nil {
 		return nil, err
 	}
@@ -248,10 +299,14 @@ func (dr *DatReader) ReadTagFile(floatfileName string) ([]*DatTagRecord, error) 
 	return records, nil
 }
 
+// getTagFileName converts a float file name to its corresponding tag file name
+func getTagFileName(floatFileName string) string {
+	return strings.Replace(floatFileName, " (Float)", " (Tagname)", 1)
+}
+
 // ReadTagFile reads the tag file associated with a float file and returns the DatTagRecord instances
 func (dr *DatReader) ReadTagFileHeader(floatfileName string) (*int32, *string, error) {
-	// Replace " (Float)" with " (Tagname)" to get the tag file name
-	tagfileName := strings.Replace(floatfileName, " (Float)", " (Tagname)", 1)
+	tagfileName := getTagFileName(floatfileName)
 
 	// Open the tag file
 	file, err := os.Open(tagfileName)
@@ -303,10 +358,9 @@ func (dr *DatReader) ReadTagFileHeader(floatfileName string) (*int32, *string, e
 
 // ReadTagFile reads the tag file associated with a float file and returns the DatTagRecord instances
 func (dr *DatReader) ReadTagRecordsFile(floatfileName string, rowCount int) ([]*DatTagRecord, error) {
-	var records []*DatTagRecord
+	records := make([]*DatTagRecord, 0, rowCount)
 
-	// Replace " (Float)" with " (Tagname)" to get the tag file name
-	tagfileName := strings.Replace(floatfileName, " (Float)", " (Tagname)", 1)
+	tagfileName := getTagFileName(floatfileName)
 
 	// Open the tag file
 	file, err := os.Open(tagfileName)

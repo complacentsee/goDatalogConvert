@@ -8,13 +8,13 @@ package LibFTH
 
 // C function prototypes
 struct PITIMESTAMP {
-    int16_t year;
-    int16_t month;
-    int16_t day;
-    int16_t hour;
-    int16_t minute;
-    int16_t second;
-    int32_t subsecond;
+    int32_t month;   // 1-12
+    int32_t year;    // four digit
+    int32_t day;     // 1-31
+    int32_t hour;    // 0-23
+    int32_t minute;  // 0-59
+    int32_t tzinfo;  // timezone information
+    double second;   // 0-59.99999999....
 };
 extern int32_t piut_setservernode(const char* name);
 extern int32_t piut_disconnect();
@@ -68,12 +68,18 @@ func Disconnect() error {
 	defer piapidll.Unlock()
 	err := C.piut_disconnect()
 	if err != 0 {
-		return fmt.Errorf("piut_setservernode returned error %d", err)
+		return fmt.Errorf("piut_disconnect returned error %d", err)
 	}
 	return nil
 }
 
 func GetPointNumber(ptName string) (int32, error) {
+	// Validate name length before acquiring any locks
+	if len(ptName) > 80 {
+		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
+	}
+
+	// Check cache first
 	mu.Lock()
 	if point, ok := historianCache[ptName]; ok {
 		mu.Unlock()
@@ -81,11 +87,9 @@ func GetPointNumber(ptName string) (int32, error) {
 	}
 	mu.Unlock()
 
+	// Not in cache, need to lookup via API
 	piapidll.Lock()
 	defer piapidll.Unlock()
-	if len(ptName) > 80 {
-		return 0, fmt.Errorf("historian point name %s > 80 characters not supported", ptName)
-	}
 
 	cPtName := C.CString(ptName)
 	defer C.free(unsafe.Pointer(cPtName))
@@ -98,6 +102,7 @@ func GetPointNumber(ptName string) (int32, error) {
 
 	ptNumber := int32(pointNumber)
 
+	// Update cache
 	mu.Lock()
 	historianCache[ptName] = LibPI.HistorianPoint{PIId: ptNumber}
 	mu.Unlock()
@@ -109,6 +114,21 @@ func PutSnapshots(count int32, ptids []int32, vs []float64, ts []LibPI.PITIMESTA
 	piapidll.Lock()
 	waitDuration := time.Since(start)
 	defer piapidll.Unlock()
+
+	// Validate slice lengths before unsafe pointer operations
+	if len(ptids) < int(count) {
+		return waitDuration, fmt.Errorf("ptids slice length %d is less than count %d", len(ptids), count)
+	}
+	if len(vs) < int(count) {
+		return waitDuration, fmt.Errorf("vs slice length %d is less than count %d", len(vs), count)
+	}
+	if len(ts) < int(count) {
+		return waitDuration, fmt.Errorf("ts slice length %d is less than count %d", len(ts), count)
+	}
+	if count == 0 {
+		return waitDuration, fmt.Errorf("count must be greater than 0")
+	}
+
 	ivals := make([]C.int32_t, count)
 	bsizes := make([]C.uint32_t, count)
 	istats := make([]C.int32_t, count)
@@ -205,39 +225,3 @@ func ConvertDatFloatRecordsToPutSnapshots(records []*LibDAT.DatFloatRecord, poin
 
 	return err
 }
-
-// func ConvertDatFloatRecordsToPutSnapshots(records []*LibDAT.DatFloatRecord, pointLookup *LibPI.PointLookup) error {
-// 	// Prepare slices for PutSnapshots inputs
-// 	var ptids []int32
-// 	var vs []float64
-// 	var ts []LibPI.PITIMESTAMP
-// 	var count int32 = 0
-
-// 	for i, record := range records {
-
-// 		// Use the point lookup to get the PI Point ID
-// 		piPointID, exists := pointLookup.GetPointIDByDataLogID(record.TagID)
-// 		if !exists {
-// 			continue
-// 			//return fmt.Errorf("point ID not found for DataLogID %d", record.TagID)
-// 		}
-// 		if piPointID == nil {
-// 			continue
-// 		}
-
-// 		piTimestamp := LibPI.NewPITIMESTAMP(record.TimeStamp)
-
-// 		// Append the mapped values to the slices
-// 		ptids = append(ptids, *piPointID)
-// 		vs = append(vs, record.Val)
-// 		ts = append(ts, piTimestamp)
-// 		count++
-// 	}
-// 	slog.Info(fmt.Sprintf("Pushing %d records to historian", count))
-// 	if count < 1 {
-// 		return fmt.Errorf("no Valid entries to push to historian")
-// 	}
-
-// 	// Call the PutSnapshots function with the prepared data
-// 	return PutSnapshots(count, ptids, vs, ts)
-// }
